@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: © 2024 Tiny Tapeout
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.
 
 
 import cocotb  # Import the cocotb library, a coroutine-based cosimulation library for writing VHDL and Verilog testbenches in Python.
