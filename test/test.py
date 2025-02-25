@@ -1,17 +1,14 @@
-# SPDX-FileCopyrightText: © 2024 Tiny Tapeout
-# SPDX-License-Identifier: Apache-2.0
-
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles
 
 
 @cocotb.test()
-async def test_tt_um_boolean(dut):
+async def test_exhaustive_logic(dut):
     dut._log.info("Start")
 
-    # Set the clock period to 10 ns
-    clock = Clock(dut.clk, 10, units="ns")
+    # Set the clock period to 10 us (100 KHz)
+    clock = Clock(dut.clk, 10, units="us")
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -24,36 +21,37 @@ async def test_tt_um_boolean(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    dut._log.info("Testing Specific Cases")
+    dut._log.info("Starting exhaustive test cases...")
 
-    # Define test vectors (A, B) with expected output computation
-    test_vectors = [
-        (11001100, 10101010),  # Test Case 1: Alternating bit pattern (high bits with interleaved 1s and 0s)
-        (11110000, 00001111),  # Test Case 2: Upper half bits are 1s, lower half bits are 0s (and vice versa for B)
-        (00000000, 11111111),  # Test Case 3: A is all zeros, B is all ones (edge case)
-        (10101010, 01010101)   # Test Case 4: Complementary bit pattern (each bit in A is the opposite of B)
-    ]
+    # Iterate through all 256 × 256 combinations of A and B
+    for a in range(256):  # 0 to 255 (0b00000000 to 0b11111111)
+        for b in range(256):  
+            # Compute expected values based on the logic table
+            not_a = ~a & 0xFF  # Ensuring 8-bit representation
+            a_and_b = a & b
+            not_a_and_b = not_a & b
+            expected_output = a_and_b | not_a_and_b  # (A ∧ B) ∨ (¬A ∧ B)
 
-    for a, b in test_vectors:
-        # Assign inputs
-        dut.ui_in.value = a
-        dut.uio_in.value = b
-        await ClockCycles(dut.clk, 1)
+            # Assign values
+            dut.ui_in.value = a
+            dut.uio_in.value = b
 
-        # Compute expected output using logic function
-        expected_output = (a & b) | (~a & b)
+            # Wait for one clock cycle
+            await ClockCycles(dut.clk, 1)
 
-        # Log expected values
-        dut._log.info(f"Testing A={a:08b}, B={b:08b}, Expected Output={expected_output:08b}")
+            # Capture and validate the output
+            actual_output = dut.uo_out.value.integer
+            dut._log.info(
+                f"A={a:08b}, B={b:08b}, ¬A={not_a:08b}, A∧B={a_and_b:08b}, ¬A∧B={not_a_and_b:08b}, "
+                f"Expected Output={expected_output:08b}, Got={actual_output:08b}"
+            )
 
-        # Assert correctness
-        assert dut.uo_out.value == expected_output, (
-            f"Test failed with A={a:08b} B={b:08b} "
-            f"Expected={expected_output:08b} Got={dut.uo_out.value:08b}"
-        )
+            assert actual_output == expected_output, (
+                f"Test failed for A={a:08b}, B={b:08b}. "
+                f"Expected={expected_output:08b}, Got={actual_output:08b}"
+            )
 
-        dut._log.info(f"Test Passed: A={a:08b}, B={b:08b}, Output={expected_output:08b}")
+    dut._log.info("All exhaustive test cases passed successfully!")
 
-    dut._log.info("All Test Cases Passed Successfully")
 
 
